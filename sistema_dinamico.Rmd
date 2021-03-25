@@ -1,0 +1,597 @@
+---
+title: "Simulación en el Sistema de Colas"
+author: "Lizeth Moreno"
+date: "17 de Junio de 2019"
+output: 
+
+  rmdformats::readthedown:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+<div style="text-align: justify">
+
+
+# Objetivos 
+
+El principal objetivo de este trabajo es primero explicar como funciona un sistema de colas, su importancia, y como modelar este proceso. Y el segundo objetivo es estudiar y comparar el rendimiento de un sistema de colas, utilizando dos modelos, el primero es el **G/G/K**, mientras el otro supone una variante del mismo al asumir que el número **K** de servidores es variable, y su dinámica depende de cierta política preestablecida. 
+
+# Introducción
+Todos hemos experimentado en alguna ocasión la sensación de estar perdiendo el tiempo al esperar en una cola. El fenómeno de las colas nos parece natural: esperamos en el coche al estar en un tapón, o un semáforo mal regulado, o en un peaje; esperamos en el teléfono a que nos atienda un operador y en la cola de un supermercado para pagar. Pero a veces las esperas son buenas. Nos hacen visualizar la importancia del producto o servicio que vamos a adquirir, nos permiten pensar y reconfigurar nuestro requerimiento.
+Pero en general como clientes no queremos esperar, los gestores de los citados servicios no quieren que esperemos. ¿Por qué hay que esperar? ¿Cuánto hay que esperar?. La respuesta es casi siempre simple, en algún momento la capacidad de servicio ha sido menor que la capacidad demandada. Esta limitación se puede eliminar invirtiendo en elementos que aumenten la capacidad. En estos casos la pregunta es: ¿Compensa invertir en máquinas, o mejor invertimos en salas de espera?.
+La teoría de colas intenta responder a estas preguntas utilizando la simulación como herramienta principal.
+
+# Descripción de un sistema de colas
+
+Un sistema de colas se puede describir como sigue. Un conjunto de "clientes" llega a un sistema buscando un servicio, esperan si este no es inmediato, y abandonan el sistema una vez han sido atendidos.
+El término "cliente" se usa con un sentido general y no implica que sea un ser humano, puede significar piezas esperando su turno para ser procesadas o una lista de trabajo esperando para imprimir en una impresora en red.
+La teoría de colas fue originariamente un trabajo práctico. La primera aplicación de la que se tiene noticia es del matemático danés Erlang sobre conversaciones telefónicas en 1909, para el cálculo de tamaño de centralitas. Después se convirtió en un concepto teórico que consiguió un gran desarrollo 
+más aun en los últimos años, en parte ayudado del desarrollo tecnológico reflejado en la potencia 
+computacional de nuestras actuales máquinas.
+
+# Características de los sistemas de colas
+
+Seis son las características básicas que se deben utilizar para describir adecuadamente un sistema de colas:
+
+  - Patrón de llegada de los clientes
+  - Patrón de servicio de los servidores
+  - Disciplina de cola
+  - Capacidad del sistema
+  - Número de canales de servicio
+  - Número de etapas de servicio
+
+# Como medir el rendimiento de un sistema
+
+La tarea de un analista de colas puede ser de dos tipo: primero establecer mecanismos para medir la efectividad del sistema, o diseñar un sistema "óptimo" (de acuerdo a algún criterio).
+
+Diseñar eficientemente consiste, básicamente, en definir un sistema cuyo coste de diseño y de operación se justifique por el servicio que da. Dicho servicio se puede evaluar mediante el costo de "no darlo". De este modo al diseñar se pretende minimizar unos supuestos costos totales.
+A partir de los datos que nos suministra la teoría de colas se puede obtener la información necesaria para definir el número de asientos necesarios en una sala de espera, o la estructura de etapas de un proceso de atención al cliente.
+En cualquier caso, para poder tomar decisiones hacen falta datos que la teoría de colas puede dar en alguno de los siguientes tres aspectos:
+
+  - tiempo de espera (en el total del sistema o en la cola)
+  - cantidad de clientes esperando (en el sistema o en las colas)
+  - tiempo ocioso de los servidores (total o particular de cada servicio)
+
+\clearpage
+
+# Sistema de colas G/G/K
+
+Un sistema con servidores en paralelo se caracteriza porque hay más de un servidor que ejecuta la misma función con la misma eficiencia. Es un sistema con $k$ servidores en paralelo y donde no hay varias colas, sino una sola. 
+
+Se asume que los tiempos de arribo de los clientes se distribuyen con una función general, es decir  $t_a \sim D_1$, y además se tiene que los tiempos de servicio de todos los servidores siguen una misma distribución general digamos $y \sim D_2$.
+
+## Descripción de Parámetros
+
+**Variables de tiempo** $t,T$ 
+    
+    
+**Variables de conteo** 
+
+  - $N_{A}$, número de llegadas hasta el tiempo t.
+  - $C_{j}$, número de clientes atendidos por el servidor $j, j=1,2,...,k$, donde \textit{k} es el número de servidores abiertos hasta el instante \textit{t}.    
+    
+**Variables de salida**
+
+  - $A(n)$: la hora de llegada del cliente n, $n\leq1$ 
+  - $D(n)$: la hora de salida del cliente n, $n\leq1$  
+    
+**Variables de estado** 
+\[ ES=(n,i_{1},i_{2},...,i_{k}) \]
+
+  - \textit{n}: número de clientes en el sistema. 
+  - $i_k$: i-ésimo cliente que va a estar en el servidor \textit{k}. 
+    
+**Lista de eventos**
+\[LE=(t_a,tt,t_s)\]
+
+  - $t_a$: hora del arribo.
+  - $tt$: hora de la atención.
+  - $t_s$: hora de la salida.
+
+Con estas consideraciones, lo que nuestro código nos devuelve es una lista con los siguientes datos:
+  
+  - Tiempos de Arribo del n-ésimo cliente $A(n)$
+  - Tiempos de Atención del n-ésimo cliente $I(n)$
+  - Tiempos de Finalización del servicio del n-ésimo cliente $D(n)$
+  - Cantidad de Clientes atendida por cada servidor $C_j$.
+  - Tiempo total que esperaron los clientes en la fila.
+  - Tiempo total que estuvieron los servidores desocupados.
+
+## Implementación
+
+Bajo estos supuestos hemos implementado en R un código para simular este proceso, mismo que mostramos a continuación:
+
+```{r}
+cola_ggk<-function(T=50,lambda=10,mu=2,k=5){
+  #+++++++++++++++ Funciones Extra +++++++++++++++++++
+  #Funcion que genera tiempos de llegada 
+  gen_T<-function(la=lambda){rexp(1,la);}
+  #Funcion que genera tiempos de servicio
+  gen_Y<-function(muh=mu){rexp(1,muh);}
+  #Funcion para Tiempo de Servicio Cliente
+  tmp_clientes<-function(I,A){
+    s<-0;
+    for(i in 1:length(I)){s<-s+I[i]-A[i];}
+    s<-s/length(I);return(s);
+  }
+  #++++++++++++  Inicializa Parámetros  +++++++++++++++
+  t<-0;Na<-0;C<-rep(0,k);t1<-rep(0,k);
+  tmuerto<-rep(0,k);n<-0;i<-rep(0,k);
+  ta<-rexp(1,lambda);tt<-rep(Inf,k);
+  #Variables de Salida
+  A=NULL;I=NULL;D=NULL;
+  #++++++++++++++++  Inicio  ++++++++++++++++++++++++
+  while(t<=T){
+    if(ta<min(tt)){
+      t<-ta;Na<-Na+1;ta<-ta+gen_T();
+      A<-c(A,t);a<-n;
+      if(n<k){
+        j<-1;
+        while(n==a){
+          if(i[j]==0){
+            i[j]<-Na;tt[j]<-t+gen_Y();
+            n<-n+1;I[Na]<-t;
+          }else{
+            j<-j+1;
+          }
+        }
+        tmuerto[j]<-tmuerto[j]+(t-t1[j]);
+      }else{
+        n<-n+1;
+      }
+    }else{
+      ind<-which.min(tt);t<-tt[ind];
+      C[ind]<-C[ind]+1;D[i[ind]]<-t;
+      if(n<=k){
+        i[ind]<-0;tt[ind]<-Inf;
+        t1[ind]<-t;
+      }else{
+        m<-max(i);i[ind]<-m+1;
+        tt[ind]<-t+gen_Y();I[m+1]<-t;
+      }
+      n<-n-1;		
+    }
+    
+  }
+  while(n>0){
+    ind<-which.min(tt);t<-tt[ind];
+    C[ind]<-C[ind]+1;D[i[ind]]<-t;
+    if(n<=k){
+      i[ind]<-0;tt[ind]<-Inf;
+    }else{
+      m<-max(i);i[ind]<-m+1;
+      tt[ind]<-t+gen_Y();I[m+1]<-t;
+    }
+    n<-n-1;
+  }
+
+  tmuertoserv<-sum(tmuerto)/length(A);
+  
+  return(list(T_llegada=A,T_atendido=I,T_partida=D,
+            Cantidad_atendida_x_servidores=C,
+            T_muerto_cli=tmp_clientes(I,A),
+            T_muerto_serv=tmuertoserv));
+}
+#+++++++++++++++++++  FIN +++++++++++++++++++++++++
+
+```
+
+
+A continuación ejecutamos la función que simula el sistema de colas G/G/K, considerando un horizonte de tiempo $T=10$ horas, y distribuciones exponenciales de parámetros $\lambda=10$, $\mu=2$ y considerando $K=5$  el número de servidores activos.
+
+Usaremos el paquete ` ggplot2` para poder visualizar algunas de las salidas de la función que simula  el G/G/K, y obtenemos los siguientes resultados:
+
+```{r,echo=FALSE}
+k<-5;
+modelo<-cola_ggk(10,10,2,k);
+#Tiempos de llegada
+llegada<-modelo$T_llegada;
+#Tiempos de atención
+atendido<-modelo$T_atendido;
+#Tiempos de partoda
+partida<-modelo$T_partida;
+
+res_ser<-data.frame(Servidor=c(1:k,"Total"),Cantidad_Atendida=c(modelo$Cantidad_atendida_x_servidores,sum(modelo$Cantidad_atendida_x_servidores)));
+names(res_ser)<-c("Servidor","Clientes Atendidos");
+
+t_muert<-data.frame(Tipo=c("Cliente","Servidor"),Tiempo_Muerto=c(modelo$T_muerto_cli,modelo$T_muerto_serv));
+names(t_muert)<-c("Tipo","Tiempo Muerto");
+
+#kable(res_ser);
+#kable(t_muert);
+
+```
+
+
+
+## Gráficos
+
+```{r,echo=FALSE,fig.align='right'}
+#++++++++++++++ GGPLOT2  +++++++++++++++++++++++++++++++
+# Tiempos de arribo y partida
+library(ggplot2);
+n<-c(1:length(llegada));N<-length(n);
+BDD<-data.frame(n=c(n,n,n),Tiempo=c(llegada,atendido,partida),
+                Evento=factor(c(rep("Arribo",length(n)),
+                                rep("Atención",length(n)),
+                                rep("Partida",length(n)))));
+
+ggplot(BDD) +
+  geom_point(data=BDD, mapping=aes(x=Tiempo, y=n,colour=Evento),alpha=I(0.5),size=2 )+
+  geom_segment(data = BDD,aes(x = c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Arribo"]), 
+                              y = c(numeric(2*N),BDD$n[BDD$Evento=="Arribo"]),
+                              xend =c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Atención"]), 
+                              yend =c(numeric(2*N),BDD$n[BDD$Evento=="Arribo"]), 
+                              colour = "Tiempo Espera"))+
+  geom_segment(data = BDD,aes(x = c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Atención"]), 
+                              y = c(numeric(2*N),BDD$n[BDD$Evento=="Atención"]),
+                              xend =c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Partida"]), 
+                              yend =c(numeric(2*N),BDD$n[BDD$Evento=="Partida"]), 
+                              colour = "Tiempo Atención"))+
+  scale_colour_manual(values=c("#D55E00","#990000","#003399","#56B4E9","#D55E00"))+
+  ggtitle("Sistema de Colas G/G/K");
+```
+
+
+\clearpage
+
+# Sistema de Colas G/G/K(t) dinámico
+
+Pues bien este modelo se diferencia del anterior, ya que este asume que el 
+número de servidores abiertos es variable en el tiempo $K=K(t)$. Para este caso asumiremos
+la política siguiente:
+
+  - Un servidor se abre si el número de clientes en el sistema (tanto en fila, como siendo atendidos)
+  supera a $q$ veces el número de servidores abiertos en ese instante, usualmente se considera al factor $q=2$ o $3$.
+  - Un servidor desocupado se cierra si el número de personas en el sistema es igual que el número de servidores ocupados.
+
+## Implementación
+
+Considerando esta modificación, implementamos un código en R que simula este proceso, mismo que mostramos a continuación:
+
+```{r}
+proyecto<-function(Tmax=50,lambda=10,mu=2,kmax=5){
+  #+++++++++++++++ Funciones Extra +++++++++++++++++++
+  #Funcion que genera tiempos de llegada 
+  gen_T<-function(la=lambda){rexp(1,la);}
+  #Funcion que genera tiempos de servicio
+  gen_Y<-function(muh=mu){rexp(1,muh);}
+  #Funcion para Tiempo de Servicio Cliente
+  tmp_clientes<-function(I,A){
+    s<-0;
+    for(i in 1:length(I)){s<-s+I[i]-A[i];}
+    s<-s/length(I);return(s);
+  }
+  #LLenar contador
+  cont_hac<-function(B,t,N_A){
+    if(N_A>=0 && is.data.frame(B)){
+      return(data.frame(tiempo=c(B[,1],t),servidores_activos=c(B[,2],N_A)));
+    }else{
+      print("Error Contador mal");
+    }
+  }
+  #+++++++++++++++ Inicializacion +++++++++++++++++++++
+  t<-0;t1<-0;N_A<-0;
+  C<-rep(0,kmax);serv<-1;n<-0;
+  i<-rep(Inf,kmax);i[1]<-0;
+  tA<-gen_T();tt<-rep(Inf,kmax);t_muerto<-0;
+  # Contador
+  cntd<-data.frame(t=0,servidores=1);
+  #Variables de Salida
+  A=NULL;I=NULL;D=NULL;
+  #++++++++++++++    COMIENZO  ++++++++++++++++++++++++
+  while(t<=Tmax){
+    if(tA<min(tt)){
+      t<-tA;tA<-tA+gen_T();
+      N_A<-N_A+1;A<-c(A,t);
+      if(n<=serv && serv<kmax){ 
+        if(min(i)==0){
+          ind<-which.min(i);
+          t_muerto<-t_muerto+(t-t1);
+        }else{
+          ind<-which.max(i);serv<-serv+1;
+          cntd<-cont_hac(cntd,t,serv);
+        }
+        i[ind]<-N_A;
+        tt[ind]<-t+gen_Y();
+        I[N_A]<-t;n<-n+1;
+      }else{
+        n<-n+1;
+      }
+    }else{
+      ind<-which.min(tt);t<-tt[ind];
+      C[ind]<-C[ind]+1;D[i[ind]]<-t;
+      if(n<=kmax){
+        if(serv==1){
+          i[ind]<-0;t1<-t;
+        }else{
+          i[ind]<-Inf;
+          serv<-serv-1;
+          cntd<-cont_hac(cntd,t,serv);
+        }
+        tt[ind]<-Inf;
+      }else{
+        m<-max(i);i[ind]<-m+1;
+        tt[ind]<-t+gen_Y();I[m+1]<-t;
+      }
+      n<-n-1;
+    }
+  }
+  while(n>0){
+    ind<-which.min(tt);t<-tt[ind];
+    C[ind]<-C[ind]+1;D[i[ind]]<-t;
+    if(n<=kmax){
+      if(serv==1){
+        i[ind]<-0;
+      }else{
+        i[ind]<-Inf;serv<-serv-1;
+        cntd<-cont_hac(cntd,t,serv);
+      }
+      tt[ind]<-Inf;
+    }else{
+      m<-max(i);i[ind]<-m+1;
+      tt[ind]<-t+gen_Y();I[m+1]<-t;
+    }
+    n<-n-1;
+  }
+  t_muerto<-t_muerto/length(A);
+  return(list(T_llegada=A,T_atendido=I,T_partida=D,Cantid_atendida_x_servidores=C,
+            T_muerto_cli=tmp_clientes(I,A),T_muerto_serv=t_muerto,Contador=cntd));
+}
+#****************  FIN  ********************
+```
+
+Los parámetros son casí identicos al modelo G/G/K estático, pero en este caso se añade un output que es $k(t)$, que representa el número de servidores abiertos al tiempo $t$.
+
+A continuación ejecutamos el código de R que mostramos ateriormente, considerando un horizonte de tiempo $T=10$ horas, y distribuciones exponenciales de parámetros $\lambda=10$, $\mu=2$ y considerando $K_{max}=5$  el número existente de servidores.
+
+```{r,echo=FALSE}
+k<-5;
+modelo<-proyecto(10,10,2,k);
+#Tiempos de llegada
+llegada<-modelo$T_llegada;
+#Tiempos de atención
+atendido<-modelo$T_atendido;
+#Tiempos de partoda
+partida<-modelo$T_partida;
+
+res_ser<-data.frame(Servidor=c(1:k,"Total"),
+                    Cantidad_Atendida=c(modelo$Cantid_atendida_x_servidores,
+                                        sum(modelo$Cantid_atendida_x_servidores)));
+names(res_ser)<-c("Servidor","Clientes Atendidos");
+
+t_muert<-data.frame(Tipo=c("Cliente","Servidor"),Tiempo_Muerto=c(modelo$T_muerto_cli,modelo$T_muerto_serv));
+names(t_muert)<-c("Tipo","Tiempo Muerto");
+
+#kable(res_ser);
+#kable(t_muert);
+```
+
+## Parte dinámica del Sistema
+
+Además podemos observar el comportamiento dinámico de $k(t)$ resumido en la siguiente tabla y su respectiva gráfica:
+
+```{r,echo=FALSE}
+l<-7;
+cn<-length(modelo$Contador[,2])
+contador<-modelo$Contador[c(1:l,(cn-l):cn),];
+names(contador)<-c("Tiempo","Servidores Activos");
+#kable(contador);
+```
+
+```{r,echo=FALSE,out.width='350px',out.height = '350px',fig.align='center'}
+#grafico k(t)
+contador<-modelo$Contador;
+ggplot() +
+geom_step(data=contador, mapping=aes(x=tiempo, y=servidores_activos))+
+  xlab("Tiempo")+ylab("K(t)")+
+  geom_point(data=contador, mapping=aes(x=tiempo, y=servidores_activos), color="red")+
+  ggtitle("Servidores activos K(t)");
+
+```
+
+## Gráficos
+
+```{r,echo=FALSE,fig.align='right'}
+modelo<-proyecto(10,10,2,5);
+
+#Tiempos de llegada
+llegada<-modelo$T_llegada;
+#Tiempos de atención
+atendido<-modelo$T_atendido;
+#Tiempos de partoda
+partida<-modelo$T_partida;
+#++++++++++++++ GGPLOT2  +++++++++++++++++++++++++++++++
+# Tiempos de arribo y partida
+library(ggplot2)
+n<-c(1:length(llegada));N<-length(n);
+BDD<-data.frame(n=c(n,n,n),Tiempo=c(llegada,atendido,partida),
+                Evento=factor(c(rep("Arribo",length(n)),
+                                rep("Atención",length(n)),
+                                rep("Partida",length(n)))));
+
+ggplot(BDD) +
+  geom_point(data=BDD, mapping=aes(x=Tiempo, y=n,colour=Evento),alpha=I(0.5),size=2 )+
+  geom_segment(data = BDD,aes(x = c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Arribo"]), 
+                              y = c(numeric(2*N),BDD$n[BDD$Evento=="Arribo"]),
+                              xend =c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Atención"]), 
+                              yend =c(numeric(2*N),BDD$n[BDD$Evento=="Arribo"]), 
+                              colour = "Tiempo Espera"))+
+  geom_segment(data = BDD,aes(x = c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Atención"]), 
+                              y = c(numeric(2*N),BDD$n[BDD$Evento=="Atención"]),
+                              xend =c(numeric(2*N),BDD$Tiempo[BDD$Evento=="Partida"]), 
+                              yend =c(numeric(2*N),BDD$n[BDD$Evento=="Partida"]), 
+                              colour = "Tiempo Atención"))+
+  scale_colour_manual(values=c("#D55E00","#990000","#003399","#56B4E9","#D55E00"))+
+  ggtitle("Sistema de Colas Dinámico");
+```
+
+```{r, results='asis', echo=FALSE}
+cat("\\newpage")
+```
+
+# Comparación del Rendimiento
+
+```{r,echo=FALSE}
+#Numero de Simulaciones del sistema
+N<-500;
+```
+
+A fin de aclarar el comportamiento de estos dos sistemas, realizamos $N=`r N`$ simulaciones de cada uno (manteniendo los mismos parámetros), para luego tratar de estimar algunas caracteristicas de los sistemas como por ejemplo el **Tiempo que los clientes estuvieron en espera** y el **Tiempo de oscio de los Servidores**. A continuación las comparaciones en cada criterio.
+
+```{r,echo=FALSE}
+#+++++++++++++++++++++++  Creación de Tablas de los dos Modelos ++++++++++++++++++++
+#Modelo GGK
+t_cli<-c();t_srv<-c();
+for(i in 1:N){
+  mod<-cola_ggk(10,10,2,5);
+  t_cli[i]<-mod$T_muerto_cli;
+  t_srv[i]<-mod$T_muerto_serv;
+}
+ggk_t<-data.frame(Iteracion=1:N,Tiempo_Clientes=t_cli,Tiempo_Oscio_Servidores=t_srv);
+
+#Modelo DINAMICO
+t_cli_di<-c();t_srv_di<-c();
+for(i in 1:N){
+  mod<-proyecto(10,10,2,5);
+  t_cli_di[i]<-mod$T_muerto_cli;
+  t_srv_di[i]<-mod$T_muerto_serv;
+}
+dinamico<-data.frame(Iteracion=1:N,Tiempo_Clientes=t_cli_di,Tiempo_Oscio_Servidores=t_srv_di);
+
+```
+
+
+### Tiempo que los clientes estuvieron en espera.
+
+Para estudiar el tiempo de espera  mostramos una tabla que contiene una parte de los resultados obtenidos en las simuaciones con cada modelo, y además un histograma de los tiempos para cada modelo, que nos permitirá comprender el comportamiento de la variable ``tiempo de espera del cliente".
+
+
+```{r,echo=FALSE}
+l<-10
+espera<-data.frame(ggk_t$Iteracion[c(1:l,(N-l):N)],
+                   ggk_t$Tiempo_Clientes[c(1:l,(N-l):N)],
+                   dinamico$Tiempo_Clientes[c(1:l,(N-l):N)]);
+names(espera)<-c("Iteración","Tiempo de Espera G/G/K","Tiempo de Espera G/G/K(t)");
+
+resum_esp<-data.frame(c("Media","Varianza"),
+                      c(mean(ggk_t$Tiempo_Clientes),var(ggk_t$Tiempo_Clientes)),
+                      c(mean(dinamico$Tiempo_Clientes),var(dinamico$Tiempo_Clientes)));
+names(resum_esp)<-c(" ","Tiempo de Espera G/G/K","Tiempo de Espera G/G/K(t)");
+
+#kable(espera);
+#kable(resum_esp);
+```
+
+```{r,echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE,out.width = '280px', out.height = '280px',fig.align='center'}
+library(ggplot2)
+dens_espera<-data.frame(c(ggk_t$Tiempo_Clientes,dinamico$Tiempo_Clientes),factor(c(rep("Modelo GGK",N),rep("Modelo Dinámico",N))));
+names(dens_espera)<-c("Tiempo_Espera","Modelo");
+#+++++++ Graficos Densidad
+#Tiempo de Espera del Cliente
+ggplot(dens_espera,
+       aes(x=Tiempo_Espera,fill=Modelo))+
+  geom_density(alpha=I(0.4))+xlab(" ")+
+  ylab("Distribución")+theme(legend.position="none",plot.title=element_text(size=20))+
+  ggtitle("Tiempo de Espera del Cliente");
+```
+
+```{r,,echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE,out.width = '280px', out.height = '280px',fig.align='center'}
+#++++++ Histogramas
+ggplot(dens_espera,
+       aes(x=Tiempo_Espera,fill=Modelo))+
+  geom_histogram(alpha=I(0.5),colour="grey")+facet_grid(Modelo ~.,scale="free")+
+  xlab(" ")+
+  ylab("Histogama")+theme(legend.position="none")+
+  ggtitle(" ");
+```
+
+```{r,,echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE,out.width = '280px', out.height = '280px',fig.align='center'}
+#++++++ Graficos de Caja
+ggplot(dens_espera,
+       aes(Modelo,Tiempo_Espera))+
+  geom_boxplot(aes(fill=Modelo),alpha=I(0.5))+coord_flip()+
+  xlab(" ")+theme(legend.position="none")+
+  ylab("Tiempo de Espera del Cliente")+
+  ggtitle(" ");
+```
+
+```{r, results='asis', echo=FALSE}
+cat("\\newpage")
+```
+
+### Tiempo de oscio de los Servidores.
+
+De igual manera con el objetivo de  estudiar la variable  "tiempo de oscio" mostramos una tabla que contiene una parte de los resultados obtenidos en las simuaciones con cada modelo, y además una gráfica de la función de distribución aproximada de esta variable.
+
+.
+
+```{r,echo=FALSE}
+oscio<-data.frame(ggk_t$Iteracion[c(1:l,(N-l):N)],
+                   ggk_t$Tiempo_Oscio_Servidores[c(1:l,(N-l):N)],
+                   dinamico$Tiempo_Oscio_Servidores[c(1:l,(N-l):N)]);
+names(oscio)<-c("Iteración","Tiempo de Oscio G/G/K","Tiempo Oscio G/G/K(t)");
+
+resum_osci<-data.frame(c("Media","Varianza"),
+                      c(mean(ggk_t$Tiempo_Oscio_Servidores),
+                        var(ggk_t$Tiempo_Oscio_Servidores)),
+                      c(mean(dinamico$Tiempo_Oscio_Servidores),
+                        var(dinamico$Tiempo_Oscio_Servidores)));
+names(resum_osci)<-c(" ","Tiempo de Oscio G/G/K","Tiempo de Oscio G/G/K(t)");
+
+#kable(oscio);
+#kable(resum_osci);
+```
+
+```{r,echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE,out.width = '280px', out.height = '280px',fig.align='center'}
+dens_oscio<-data.frame(c(ggk_t$Tiempo_Oscio_Servidores,dinamico$Tiempo_Oscio_Servidores),factor(c(rep("Modelo GGK",N),rep("Modelo Dinámico",N))));
+names(dens_oscio)<-c("Tiempo_Oscio","Modelo");
+#+++++++ Graficos Densidad
+ggplot(dens_oscio,
+       aes(x=Tiempo_Oscio,fill=Modelo))+geom_density(alpha=I(0.3))+
+  xlab(" ")+theme(legend.position="none",plot.title=element_text(size = 20))+
+  ylab("Distribución")+
+  ggtitle("Tiempo de Oscio del Servidor");
+```
+
+```{r,echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE,out.width = '280px', out.height = '280px',fig.align='center'}
+#++++++ Histogramas
+ggplot(dens_oscio,
+       aes(x=Tiempo_Oscio,fill=Modelo))+
+  geom_histogram(alpha=I(0.5),colour="grey")+facet_grid(Modelo ~.,scale="free")+
+  xlab(" ")+
+  ylab("Histogama")+theme(legend.position="none")+
+  ggtitle(" ");
+
+```
+
+```{r,,echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE,out.width = '280px', out.height = '280px',fig.align='center'}
+#++++++ Graficos de Caja
+ggplot(dens_oscio,
+       aes(Modelo,Tiempo_Oscio))+
+  geom_boxplot(aes(fill=Modelo),alpha=I(0.5))+coord_flip()+
+  xlab(" ")+theme(legend.position="none")+
+  ylab("Tiempo de Oscio del Servidor")+
+  ggtitle(" ");
+```
+
+```{r, results='asis', echo=FALSE}
+cat("\\newpage")
+```
+
+# Conclusiónes
+
+Partiendo de los datos obtenidos del punto anterior, podemos concluir lo siguiente:
+
+  - Por una parte al analizar el "Tiempo de espera del Cliente"" observamos que presenta un comportamiento muy similar en ambos modelos, esto se evidencia claramente en la enorme similitud de sus distribuciones. Esto era de esperarce ya que los tiempo de arribo de los clientes los tomamos con la misma distribución para ambos modelos.
+  
+  - En cuanto al "Tiempo de Oscio de los servidores", se ve una contundente diferencia entre los dos modelos, se ve de inmediato que el modelo dinámico es muchísimo más eficiente, es casi nulo en la mayoria de los casos. Esto debido a la politica que impusimos sobre la apertura y cierre de los servidores que evita precisamente el tiempo de oscio de los servidores, y que como vemos produce excelentes resultados de rendimiento. 
+A diferencia del modelo estático, en donde se tienen tiempos de oscio de los servidores muchísimo más elevados.
+
+  - De los dos puntos anteriores se puede concluir que el modelo dinámico presenta una importante mejora de rendimiento, es decir que al optar por una política de apertura y cierre de servidores se minimiza el costo relacionado al tiempo de oscio de los servidores, y además no afecta el rendimiento de los tiempos de espera de los clientes. Por lo tanto si se necesita escojer uno de los dos modelos (el estático, o el dinámico) se debe optar por el modelo dinámico por las razones antes expuestas.
+
+
+
+
